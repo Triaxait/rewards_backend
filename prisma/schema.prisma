@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+enum OAuthProvider {
+  GOOGLE
+  FACEBOOK
+}
+
+model User {
+  id            String   @id @default(uuid())
+  role          Role
+
+  emailEnc      String?  @unique
+  emailHash     String   @unique 
+  mobileEnc     String?  @unique
+
+  passwordHash  String?   
+  isActive      Boolean  @default(true)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  passwordResetToken   String?
+  passwordResetExpiry DateTime?
+
+  staffProfile  StaffProfile?
+
+  customerProfile  CustomerProfile?
+  oauthAccounts    OAuthAccount[]
+  @@index([emailHash])
+
+}
+
+model OAuthAccount {
+  id           String @id @default(uuid())
+  userId       String
+
+  provider     OAuthProvider
+  providerId   String   // Google `sub`
+  email        String
+
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerId])
+}
+
+model Site {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  staffSites   StaffSite[]
+  transactions Transaction[]
+}
+
+model StaffProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+
+  firstNameEnc String
+  lastNameEnc  String
+
+  createdAt DateTime @default(now())
+
+  user       User        @relation(fields: [userId], references: [id])
+  staffSites StaffSite[]
+}
+
+model StaffSite {
+  id        String   @id @default(uuid())
+  staffId   String
+  siteId    String
+
+  createdAt DateTime @default(now())
+
+  staff StaffProfile @relation(fields: [staffId], references: [id])
+  site  Site         @relation(fields: [siteId], references: [id])
+
+  @@unique([staffId, siteId])
+}
+
+model CustomerProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+
+  firstNameEnc       String
+  lastNameEnc        String
+  dob                DateTime
+
+  qrToken            String?  @unique   
+  qrExpiresAt        DateTime?
+
+  totalPaidCups      Int      @default(0)
+  totalRedeemedCups  Int      @default(0)
+
+  createdAt          DateTime @default(now())
+
+  user               User          @relation(fields: [userId], references: [id])
+  transactions       Transaction[]
+
+  @@index([qrToken])
+}
+
+
+model Transaction {
+  id         String   @id @default(uuid())
+  customerId String
+  siteId     String
+  staffId    String?
+
+  paidCups   Int @default(0)
+  freeCups   Int @default(0)
+
+  createdAt  DateTime @default(now())
+
+  customer CustomerProfile @relation(fields: [customerId], references: [id])
+  site     Site            @relation(fields: [siteId], references: [id])
+}
+
+model PendingSignup {
+  id            String   @id @default(uuid())
+
+  firstNameEnc  String
+  lastNameEnc   String
+  emailEnc      String   @unique
+  emailHash     String    
+  mobileEnc     String?
+
+  dob           DateTime
+
+  otpHash       String
+  otpExpiresAt  DateTime
+
+  createdAt     DateTime @default(now())
+
+  @@index([emailHash])
+}
+
