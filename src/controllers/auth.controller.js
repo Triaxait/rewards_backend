@@ -6,6 +6,7 @@ import { hashPassword,hashValue,comparePassword } from "../utils/hash.js";
 import { createPendingToken } from "../services/signuptoken.service.js";
 import { createAccessToken, createRefreshToken } from "../services/token.service.js";
 import jwt from "jsonwebtoken";
+import redis from "../redis/client.js";
 
 
 
@@ -136,6 +137,7 @@ const emailHash = req.emailHash;
   await tx.pendingSignup.delete({
     where: { id: pending.id },
   });
+  
 
   return user;
     });
@@ -161,7 +163,12 @@ const userPayload = {
  
 };
 
-
+try {
+    await redis.incr("analytics:totalCustomers");
+  } catch (err) {
+    console.error("⚠️ Redis customer increment failed:", err.message);
+    // IMPORTANT: do not throw
+  }
 const accessToken = createAccessToken(user);
 const refreshToken = createRefreshToken(user);
 

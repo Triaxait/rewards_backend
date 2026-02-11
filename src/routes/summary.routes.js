@@ -1,9 +1,13 @@
+import { Router } from "express";
+import { getLiveAnalytics } from "../controllers/dashboard.controller.js";
 import { authMiddleware } from "../middlewares/auth.js";
-import express from "express";
-import { rewardsSummaryController } from "../controllers/rewards.controller.js";
+import { requireRole } from "../middlewares/requireRoles.js";
+import { getDashboardAnalytics } from "../controllers/dashboard.controller.js";
 
-const router = express.Router();
+const router = Router();
 
-router.get("/summary", authMiddleware, rewardsSummaryController);
+// later you can protect this with ADMIN auth
+router.get("/live",authMiddleware,requireRole("ADMIN"), getLiveAnalytics);
+router.get("/dashboard",authMiddleware,requireRole("ADMIN"), getDashboardAnalytics);
 
 export default router;
