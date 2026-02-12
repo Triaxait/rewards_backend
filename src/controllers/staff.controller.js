@@ -122,6 +122,14 @@ const REWARD_THRESHOLD = 5;
 
 export async function handleCupsController(req, res) {
   const { customerId, siteId, paidCups = 0, redeemCups = 0 } = req.body;
+  const userId = req.userId; 
+  const staffProfile = await prisma.staffProfile.findUnique({
+    where: { userId },
+  });
+
+  if (!staffProfile) {
+    return res.status(403).json({ message: "Unauthorized Staff" });
+  }
 
   if (paidCups < 0 || redeemCups < 0) {
     return res.status(400).json({ message: "Invalid values" });
@@ -177,6 +185,7 @@ export async function handleCupsController(req, res) {
         customerId,
         siteId,
         paidCups,
+        staffId: staffProfile.id,
         freeCups: redeemCups,
       },
     });
