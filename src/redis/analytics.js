@@ -1,7 +1,7 @@
 // src/redis/analytics.js
 import redis from "./client.js";
 
-export async function incrementAnalytics({ paidCups = 0, freeCups = 0 }) {
+export async function incrementAnalytics({ paidCups , freeCups  }) {
   try {
     if (paidCups > 0) {
       await redis.incrby("analytics:cupsSold", paidCups);

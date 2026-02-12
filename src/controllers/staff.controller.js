@@ -180,7 +180,13 @@ export async function handleCupsController(req, res) {
         freeCups: redeemCups,
       },
     });
+
   });
+  
+  await incrementAnalytics({
+  paidCups,
+  freeCups: redeemCups,
+});
 
   res.json({ message: "Transaction successful" });
 }
