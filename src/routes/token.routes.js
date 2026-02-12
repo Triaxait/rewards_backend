@@ -19,7 +19,7 @@ router.get("/auth/me", authMiddleware, async (req, res) => {
         select: {
           firstNameEnc: true,
           lastNameEnc: true,
-          dob : true,
+          dob: true,
         },
       },
       staffProfile: {
@@ -31,10 +31,11 @@ router.get("/auth/me", authMiddleware, async (req, res) => {
     },
   });
 
-  res.status(401).json({
-  code: "TOKEN_EXPIRED",
-  message: "Session expired"
-});
+  if (!user)
+    return res.status(401).json({
+      code: "TOKEN_EXPIRED",
+      message: "Session expired",
+    });
 
   let profile = null;
 
@@ -48,7 +49,6 @@ router.get("/auth/me", authMiddleware, async (req, res) => {
       lastName: decrypt(user.customerProfile.lastNameEnc),
       dob: user.customerProfile.dob,
       mobile: decrypt(user.mobileEnc),
-
     };
   }
 
@@ -82,12 +82,11 @@ router.get("/auth/me", authMiddleware, async (req, res) => {
   });
 });
 
-
-
-
 router.post("/auth/logout", (req, res) => {
-  res.clearCookie("refreshToken")
-    .status(200).json({ message: "Logged out successfully" });
+  res
+    .clearCookie("refreshToken")
+    .status(200)
+    .json({ message: "Logged out successfully" });
 });
 
 export default router;
