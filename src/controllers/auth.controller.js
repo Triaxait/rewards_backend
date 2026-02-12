@@ -228,12 +228,18 @@ export async function loginController(req, res) {
   });
 
   if (!user || !user.passwordHash) {
-    return res.status(401).json({ message: "Invalid credentials" });
+    return res.status(401).json({
+  code: "INVALID_CREDENTIALS",
+  message: "Invalid email or password",
+});
   }
 
   const isValid = await comparePassword(password, user.passwordHash);
   if (!isValid) {
-    return res.status(401).json({ message: "Invalid credentials" });
+    return res.status(401).json({
+  code: "INVALID_CREDENTIALS",
+  message: "Invalid email or password",
+});
   }
 
   if (!user.isActive) {

@@ -31,7 +31,10 @@ router.get("/auth/me", authMiddleware, async (req, res) => {
     },
   });
 
-  if (!user) return res.sendStatus(401);
+  res.status(401).json({
+  code: "TOKEN_EXPIRED",
+  message: "Session expired"
+});
 
   let profile = null;
 
