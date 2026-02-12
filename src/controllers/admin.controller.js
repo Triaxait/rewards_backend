@@ -2,9 +2,11 @@
 import prisma from "../prisma.js";
 import crypto from "crypto";
 import { hashValue } from "../utils/hash.js";
-import { transporter } from "../services/email.service.js";
 import { encrypt } from "../utils/encrypt.js";
 import { decrypt } from "../utils/encrypt.js";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function createSiteController(req, res) {
   const { name, address } = req.body;
@@ -74,19 +76,25 @@ export async function addStaffController(req, res) {
 
   // 5️⃣ Send email
   const resetLink = `${process.env.FRONTEND_URL}/set-password?token=${resetToken}`;
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
-  await transporter.sendMail({
-    from: `"XL Convenience" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Set your staff password – XL Convenience",
-    html: `
-      <p>Hi ${firstName},</p>
-      <p>You have been added as staff at XL Convenience.</p>
-      <p>Please set your password using the link below:</p>
-      <p><a href="${resetLink}">Set Password</a></p>
-      <p>This link is valid for 24 hours.</p>
-    `,
-  });
+  await resend.emails.send({
+  from: process.env.EMAIL_FROM, // use your verified domain
+  to: email,
+  subject: "Set your staff password – XL Convenience",
+  html: `
+    <p>Hi ${firstName},</p>
+    <p>You have been added as staff at XL Convenience.</p>
+    <p>Please set your password using the link below:</p>
+    <p>
+      <a href="${resetLink}" 
+         style="display:inline-block;padding:10px 20px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">
+         Set Password
+      </a>
+    </p>
+    <p>This link is valid for 24 hours.</p>
+  `,
+});
 
   return res.status(201).json({
     message: "Staff added and invitation email sent",
@@ -136,18 +144,25 @@ export async function resendStaffInviteController(req, res) {
   // 5️⃣ Send email
   const resetLink = `${process.env.FRONTEND_URL}/set-password?token=${resetToken}`;
 
-  await transporter.sendMail({
-    from: `"XL Convenience" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Reset your staff password – XL Convenience",
-    html: `
-      <p>Hello,</p>
-      <p>Your previous link expired or was invalid.</p>
-      <p>Please set your password using the new link below:</p>
-      <a href="${resetLink}">Set Password</a>
-      <p>This link expires in 24 hours.</p>
-    `,
-  });
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  await resend.emails.send({
+  from: process.env.EMAIL_FROM, 
+  to: email,
+  subject: "Set your staff password – XL Convenience",
+  html: `
+    <p>Hi ${firstName},</p>
+    <p>You have been added as staff at XL Convenience.</p>
+    <p>Please set your password using the link below:</p>
+    <p>
+      <a href="${resetLink}" 
+         style="display:inline-block;padding:10px 20px;background:#000;color:#fff;text-decoration:none;border-radius:6px;">
+         Set Password
+      </a>
+    </p>
+    <p>This link is valid for 24 hours.</p>
+  `,
+});
 
   return res.status(200).json({
     message: "New invitation link sent successfully",
