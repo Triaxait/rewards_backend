@@ -7,6 +7,7 @@ import { createPendingToken } from "../services/signuptoken.service.js";
 import { createAccessToken, createRefreshToken } from "../services/token.service.js";
 import jwt from "jsonwebtoken";
 import redis from "../redis/client.js";
+import crypto from "crypto";
 
 
 
