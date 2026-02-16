@@ -98,6 +98,8 @@ export async function setPasswordController(req, res) {
   const { password } = req.body;
 const emailHash = req.emailHash;
 
+const qrToken = crypto.randomBytes(32).toString("hex");
+
   if (!password || password.length < 8) {
     return res.status(400).json({ message: "Password too short" });
   }
@@ -128,7 +130,7 @@ const emailHash = req.emailHash;
           dob: pending.dob ?? "",
           totalRedeemedCups: 0,
           totalPaidCups: 0,
-          qrToken: "",
+          qrToken: qrToken,
         },
       },
     },
