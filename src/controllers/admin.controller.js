@@ -47,10 +47,16 @@ export async function addStaffController(req, res) {
     return res.status(400).json({ message: "Staff already exists" });
   }
 
-  // 2️⃣ Generate reset token
-  const resetToken = crypto.randomBytes(32).toString("hex");
-  const resetExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  const rawToken = crypto.randomBytes(32).toString("hex");
 
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+  
   // 3️⃣ Create user
   const user = await prisma.user.create({
     data: {
@@ -60,8 +66,8 @@ export async function addStaffController(req, res) {
       mobileEnc: encrypt(mobile),
       passwordHash: null,
       isActive: false,
-      passwordResetToken: resetToken,
-      passwordResetExpiry: resetExpiry,
+      passwordResetToken: tokenHash,
+      passwordResetExpiry: expiry,
     },
   });
 
@@ -75,7 +81,7 @@ export async function addStaffController(req, res) {
   });
 
   // 5️⃣ Send email
-  const resetLink = `${process.env.FRONTEND_URL}/set-password?token=${resetToken}`;
+  const resetLink = `${process.env.FRONTEND_URL}/set-password?token=${rawToken}`;
   const resend = new Resend(process.env.RESEND_API_KEY);
 
   await resend.emails.send({
@@ -129,20 +135,25 @@ export async function resendStaffInviteController(req, res) {
   }
 
   // 3️⃣ Generate new token
-  const resetToken = crypto.randomBytes(32).toString("hex");
-  const resetExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+  const rawToken = crypto.randomBytes(32).toString("hex");
 
-  // 4️⃣ Update user
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      passwordResetToken: resetToken,
-      passwordResetExpiry: resetExpiry,
-    },
-  });
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: tokenHash,
+        passwordResetExpiry: expiry,
+      },
+    });
 
   // 5️⃣ Send email
-  const resetLink = `${process.env.FRONTEND_URL}/set-password?token=${resetToken}`;
+  const resetLink = `${process.env.FRONTEND_URL}/set-password?token=${rawToken}`;
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -306,4 +317,72 @@ export async function getStaffListController(req, res) {
   }));
 
   return res.status(200).json(response);
+}
+
+export async function getAllCustomers(req, res) {
+  try {
+    // 🔐 Only ADMIN
+    if (req.role !== "ADMIN") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const customers = await prisma.user.findMany({
+      where: {
+        role: "CUSTOMER",
+      },
+      select: {
+        id: true,
+        emailEnc: true,
+        mobileEnc: true,
+        isActive: true,
+        createdAt: true,
+        customerProfile: {
+          select: {
+            firstNameEnc: true,
+            lastNameEnc: true,
+            dob: true,
+            totalPaidCups: true,
+            totalRedeemedCups: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    const formatted = customers.map((user) => {
+      const profile = user.customerProfile;
+
+      const totalPaid = profile?.totalPaidCups || 0;
+      const totalRedeemed = profile?.totalRedeemedCups || 0;
+
+      return {
+        userId: user.id,
+        firstName: profile?.firstNameEnc
+          ? decrypt(profile.firstNameEnc)
+          : null,
+        lastName: profile?.lastNameEnc
+          ? decrypt(profile.lastNameEnc)
+          : null,
+        email: user.emailEnc ? decrypt(user.emailEnc) : null,
+        mobile: user.mobileEnc ? decrypt(user.mobileEnc) : null,
+        dob: profile?.dob || null,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+
+        // 🔥 Points Section
+        totalPaidCups: totalPaid,
+        totalRedeemedCups: totalRedeemed,
+        currentPoints: totalPaid - totalRedeemed,
+      };
+    });
+
+    return res.status(200).json(formatted);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      message: "Failed to fetch customers",
+    });
+  }
 }

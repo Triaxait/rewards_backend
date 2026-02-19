@@ -1,13 +1,14 @@
 import prisma from "../prisma.js";
 import { encrypt,decrypt } from "../utils/encrypt.js";
 import { generateOtp, hashOtp ,verifyOtp} from "../services/otp.service.js";
-import { sendOtpEmail } from "../services/email.service.js";
+import { sendOtpEmail , sendUserResetPasswordEmail} from "../services/email.service.js";
 import { hashPassword,hashValue,comparePassword } from "../utils/hash.js";
 import { createPendingToken } from "../services/signuptoken.service.js";
 import { createAccessToken, createRefreshToken } from "../services/token.service.js";
 import jwt from "jsonwebtoken";
 import redis from "../redis/client.js";
 import crypto from "crypto";
+
 
 
 
@@ -21,7 +22,7 @@ export async function signup(req, res) {
   const emailEnc = encrypt(email);
   const emailHash = hashValue(email);
 
-  // ❌ Block if real user already exists
+ 
   const existingUser = await prisma.user.findFirst({
     where: { emailHash }
   });
@@ -343,16 +344,191 @@ export async function refreshTokenController(req, res) {
     );
 
     const user = await prisma.user.findUnique({
-        where: { id: payload.userId },
+      where: { id: payload.userId },
     });
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    // 🔥 CRITICAL CHECK
+    if (payload.tokenVersion !== user.tokenVersion) {
+      return res.status(401).json({
+        message: "Session expired. Please login again.",
+      });
+    }
 
     const accessToken = createAccessToken(user);
 
-    res.status(200).json({
-    accessToken
-  });
+    return res.status(200).json({
+      accessToken,
+    });
+
   } catch (err) {
     return res.status(401).json({ message: "Invalid refresh token" });
   }
 }
 
+export async function forgotPasswordController(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const emailHash = crypto
+      .createHash("sha256")
+      .update(email.toLowerCase())
+      .digest("hex");
+
+    // 🔥 Single query with profiles included
+    const user = await prisma.user.findUnique({
+      where: { emailHash },
+      include: {
+        staffProfile: true,
+        customerProfile: true,
+      },
+    });
+
+    // Do NOT reveal existence
+    if (!user) {
+      return res.status(200).json({
+        message: "If email exists, reset link sent",
+      });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: tokenHash,
+        passwordResetExpiry: expiry,
+        tokenVersion: { increment: 1 }, // 🔥 kill old sessions
+      },
+    });
+
+
+    let name = "there";
+
+    if (user.staffProfile?.firstNameEnc) {
+      name = decrypt(user.staffProfile.firstNameEnc);
+    } else if (user.customerProfile?.firstNameEnc) {
+      name = decrypt(user.customerProfile.firstNameEnc);
+    }
+
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${rawToken}`;
+
+    await sendUserResetPasswordEmail({
+      email,
+      name,
+      resetLink,
+    });
+
+    return res.status(200).json({
+      message: "If email exists, reset link sent",
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+}
+
+export async function SetForgotPasswordController(req, res) {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ message: "Token and password required" });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters" });
+    }
+
+    // 🔥 Hash incoming token
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetToken: tokenHash,
+        passwordResetExpiry: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired link" });
+    }
+
+    const passwordHash = await hashPassword(password);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+        tokenVersion: { increment: 1 }, // 🔥 invalidate ALL sessions
+      },
+    });
+
+    return res.status(200).json({
+      message: "Password reset successful. Please login again.",
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Something went wrong" });
+  }
+}
+
+
+export async function validateResetTokenController(req, res) {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ valid: false });
+    }
+
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetToken: tokenHash,
+        passwordResetExpiry: {
+          gt: new Date(),
+        },
+      },
+      select: { id: true }, // minimal query
+    });
+
+    if (!user) {
+      return res.status(400).json({ valid: false });
+    }
+
+    return res.status(200).json({ valid: true });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ valid: false });
+  }
+}

@@ -1,48 +1,8 @@
 // controllers/auth.controller.js
 import prisma from "../prisma.js";
 import { decrypt } from "../utils/encrypt.js";
-import { hashPassword } from "../utils/hash.js";
 import { incrementAnalytics } from "../redis/analytics.js";
 
-export async function staffSetPasswordController(req, res) {
-  const { token, password } = req.body;
-
-  if (!token || !password) {
-    return res.status(400).json({ message: "Token and password required" });
-  }
-
-  // 1️⃣ Find user by reset token
-  const user = await prisma.user.findFirst({
-    where: {
-      passwordResetToken: token,
-      passwordResetExpiry: {
-        gt: new Date(), // not expired
-      },
-    },
-  });
-
-  if (!user) {
-    return res.status(400).json({ message: "Invalid or expired link" });
-  }
-
-  // 2️⃣ Hash password
-  const passwordHash = await hashPassword(password);
-
-  // 3️⃣ Update user
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      passwordHash,
-      isActive: true,
-      passwordResetToken: null,
-      passwordResetExpiry: null,
-    },
-  });
-
-  return res.status(200).json({
-    message: "Password set successfully. You can now login.",
-  });
-}
 
 export async function scanQrController(req, res) {
   const { qrToken, siteId } = req.body;

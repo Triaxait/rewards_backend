@@ -5,6 +5,7 @@ export function createAccessToken(user) {
     {
       userId: user.id,
       role: user.role,
+      tokenVersion: user.tokenVersion
     },
     process.env.JWT_ACCESS_SECRET,
     { expiresIn: "15m" }
@@ -15,10 +16,11 @@ export function createRefreshToken(user) {
   return jwt.sign(
     {
       userId: user.id,
+      tokenVersion: user.tokenVersion,
       type: "REFRESH",
     },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: "30d" }
+    { expiresIn: "7d" }
   );
 }
 

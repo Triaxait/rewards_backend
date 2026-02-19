@@ -31,4 +31,5 @@ app.use("/api/customer",customerroutes);
 app.use("/api/analytics", analyticsRoutes);
 
 
+
 export default app;
