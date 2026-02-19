@@ -20,6 +20,8 @@ app.use(cors({
   credentials: true,
 }));
 
+app.set("trust proxy", 1);
+
 // mount auth routes
 app.use("/api/auth", authRoutes);
 app.use("/api", summaryRoutes);
